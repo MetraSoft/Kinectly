@@ -10,6 +10,7 @@ from pathlib import Path
 import cv2
 import mediapipe as mp
 import numpy as np
+from kinectly.motion import MotionEngine, PoseFrame, Joint
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
@@ -105,7 +106,11 @@ def main():
     if not cam.isOpened():
         raise SystemExit('Cannot open webcam index 0 with DirectShow.')
     viewer = Viewer()
-    window = 'Kinectly v0.2 | 2D + 3D'
+    window = 'Kinectly v0.3 | 2D + 3D + MOTION'
+    engine = MotionEngine()
+    recent_events = []
+    last_frame_time = time.monotonic()
+    fps = 0.0
     cv2.namedWindow(window, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(window, WIDTH * 2, HEIGHT)
     cv2.setMouseCallback(window, viewer.mouse)
@@ -135,14 +140,37 @@ def main():
                 result = landmarker.detect_for_video(image, timestamp)
                 pose = result.pose_landmarks[0] if result.pose_landmarks else None
                 world = result.pose_world_landmarks[0] if result.pose_world_landmarks else None
+                # The motion engine consumes the estimated 3D skeleton.
+                motion_frame = PoseFrame(timestamp / 1000.0, [
+                    Joint(p.x, p.y, p.z, getattr(p, 'visibility', 1.0)) for p in world
+                ]) if world else None
+                events = engine.update(motion_frame)
+                for event in events:
+                    print(f'[Kinectly] {event.name} ({event.confidence:.2f})')
+                    recent_events.insert(0, (event.name, timestamp / 1000.0))
+                recent_events = [(name, ts) for name, ts in recent_events if timestamp / 1000.0 - ts < 2.5][:4]
+                now = time.monotonic()
+                delta = max(0.0001, now - last_frame_time)
+                fps = fps * 0.85 + (1 / delta) * 0.15
+                last_frame_time = now
                 draw_camera(frame, pose)
-                cv2.putText(frame, 'KINECTLY v0.2', (18, HEIGHT - 17),
+                cv2.putText(frame, 'KINECTLY v0.3', (18, HEIGHT - 17),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 2, cv2.LINE_AA)
                 side = viewer.render(world)
+                cv2.putText(side, f'FPS {fps:.0f}', (WIDTH - 110, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1, cv2.LINE_AA)
+                cv2.putText(side, 'ACTIVE: ' + (', '.join(sorted(engine.active)) or 'idle'),
+                            (18, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (150, 255, 160), 1, cv2.LINE_AA)
+                for idx, (event_name, _) in enumerate(recent_events):
+                    cv2.putText(side, event_name.upper(), (18, 94 + idx * 26),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.56, (90, 210, 255), 2, cv2.LINE_AA)
                 cv2.imshow(window, np.hstack((frame, side)))
                 key = cv2.waitKey(1) & 0xFF
                 if key in (ord('q'), 27):
                     break
+                if key == ord('c'):
+                    engine.reset()
+                    recent_events.clear()
                 if key == ord('r'):
                     viewer.yaw, viewer.pitch, viewer.zoom = -0.25, 0.10, 165.0
                 if cv2.getWindowProperty(window, cv2.WND_PROP_VISIBLE) < 1:
