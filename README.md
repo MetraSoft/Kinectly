@@ -1,37 +1,24 @@
-# Kinectly
+# Kinectly v0.2 — 3D Viewer
 
-Experimental open-source webcam-based body tracking and motion event engine by MetraSoft.
-
-## Current features
-- MediaPipe Tasks body tracking from a webcam
-- Live 2D skeleton overlay
-- Experimental arm-extension and crouch events
-- Reusable `MotionEngine` Python class
-
-**Note:** The current gestures are experimental and may produce false positives. 3D visualization and robust pretrained action recognition are not yet implemented.
+Experimental webcam-based body tracking with a live 2D overlay and interactive estimated 3D skeleton.
 
 ## Setup (Windows)
-Install Python and dependencies:
 
-```cmd
-py -3.13 -m pip install -r requirements.txt
-```
+1. Copy `pose_landmarker_full.task` into the same folder as `main.py` (obtain from the official MediaPipe model distribution).
+2. Install dependencies: `py -3.13 -m pip install -r requirements.txt`
+3. Run: `py -3.13 main.py`
 
-Place your compatible MediaPipe `pose_landmarker_full.task` model in the repository root, then run:
+The webcam is opened with DirectShow at 640x480 to support the Logitech C920.
 
-```cmd
-py -3.13 main.py
-```
+## Controls
 
-Uses DirectShow camera 0 at 640x480. Press ESC to quit.
+- Left drag over 3D panel: rotate
+- Mouse wheel over 3D panel: zoom
+- R: reset camera view
+- Q or Escape: quit
 
-## API
+## Notes
 
-```python
-from kinectly import MotionEngine
-engine = MotionEngine()
-# events = engine.update(mediapipe_pose_landmarks)
-```
+The 3D points are *estimated* by MediaPipe from a single RGB camera. This is not a real depth sensor. This prototype is a viewer, not a trained action recognizer.
 
-## License
-Project code can be licensed under Apache-2.0 by its copyright holder. Third-party model assets retain their own licenses.
+The webcam image is mirrored for display. The pose landmarks are inferred from the mirrored frame as well.
